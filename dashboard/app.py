@@ -1,66 +1,88 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import sys
+import os
+
+# Fix import path for deployment
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.prediction import predict_future_spending
 
-st.set_page_config(page_title="Expense Tracker", layout="wide")
+# -------------------------------
+# 🎯 PAGE CONFIG + HEADER
+# -------------------------------
+st.set_page_config(page_title="Smart Expense Tracker", layout="wide")
 
-st.title("💸 Smart Expense Tracker Dashboard")
+st.title("💸 Smart Expense Tracker")
+st.markdown("### Analyze • Visualize • Predict your spending")
 
-# Load data
+# -------------------------------
+# 📂 LOAD DATA
+# -------------------------------
 df = pd.read_csv("data/expenses.csv")
 df["Date"] = pd.to_datetime(df["Date"])
 df["Month"] = df["Date"].dt.month
 
 # -------------------------------
-# 🎯 SIDEBAR FILTERS
+# 🔍 SIDEBAR FILTERS
 # -------------------------------
-st.sidebar.header("🔍 Filters")
+st.sidebar.title("🔍 Filter Data")
 
-category = st.sidebar.multiselect(
-    "Category",
-    df["Category"].unique(),
-    default=df["Category"].unique()
+category = st.sidebar.selectbox(
+    "Select Category",
+    df["Category"].unique()
 )
 
-month = st.sidebar.multiselect(
-    "Month",
-    df["Month"].unique(),
-    default=df["Month"].unique()
-)
+# Budget input (WOW feature)
+budget = st.sidebar.number_input("Set your monthly budget", value=20000)
 
-filtered_df = df[
-    (df["Category"].isin(category)) &
-    (df["Month"].isin(month))
-]
+filtered_df = df[df["Category"] == category]
 
 # -------------------------------
-# 💰 KPI CARDS
+# 💰 KPI SECTION
 # -------------------------------
-total = int(filtered_df["Amount"].sum())
-avg = int(filtered_df["Amount"].mean())
-max_val = int(filtered_df["Amount"].max())
+total = filtered_df["Amount"].sum()
+avg = filtered_df["Amount"].mean()
+max_val = filtered_df["Amount"].max()
 
 col1, col2, col3 = st.columns(3)
-col1.metric("💰 Total Spend", f"₹{total}")
-col2.metric("📊 Avg Spend", f"₹{avg}")
-col3.metric("🔥 Max Spend", f"₹{max_val}")
+col1.metric("💰 Total Spend", f"₹{int(total)}")
+col2.metric("📊 Avg Spend", f"₹{int(avg)}")
+col3.metric("🔥 Max Spend", f"₹{int(max_val)}")
 
 # -------------------------------
-# 📊 INTERACTIVE CHARTS (Plotly)
+# 💰 BUDGET STATUS (WOW FEATURE)
 # -------------------------------
+st.subheader("💰 Budget Status")
 
+if total > budget:
+    st.error("⚠️ You have exceeded your budget!")
+else:
+    st.success("✅ You are within your budget.")
+
+# -------------------------------
+# 📊 CATEGORY CHART
+# -------------------------------
 st.subheader("📂 Category Spending")
+
 fig1 = px.bar(filtered_df, x="Category", y="Amount", color="Category")
 st.plotly_chart(fig1, use_container_width=True)
 
+# -------------------------------
+# 📅 MONTHLY TREND
+# -------------------------------
 st.subheader("📅 Monthly Trend")
+
 monthly = filtered_df.groupby("Month")["Amount"].sum().reset_index()
 fig2 = px.line(monthly, x="Month", y="Amount", markers=True)
 st.plotly_chart(fig2, use_container_width=True)
 
+# -------------------------------
+# 💳 PAYMENT DISTRIBUTION
+# -------------------------------
 st.subheader("💳 Payment Distribution")
+
 fig3 = px.pie(filtered_df, names="Payment_Method", values="Amount")
 st.plotly_chart(fig3, use_container_width=True)
 
@@ -69,21 +91,27 @@ st.plotly_chart(fig3, use_container_width=True)
 # -------------------------------
 st.subheader("🔮 Future Spending Prediction")
 
+st.info(
+    "This prediction is generated using Machine Learning (Linear Regression) "
+    "based on past monthly expenses. It estimates how your spending may behave in upcoming months."
+)
+
 pred_df = predict_future_spending()
 
 fig4 = px.line(pred_df, x="Month", y="Predicted Spending", markers=True)
 st.plotly_chart(fig4, use_container_width=True)
 
+st.write("📈 The trend line shows expected spending growth or decline based on historical data.")
+
 st.dataframe(pred_df)
 
 # -------------------------------
-# ⚠️ INSIGHTS
+# 📌 INSIGHTS SECTION
 # -------------------------------
 st.subheader("📌 Insights")
 
-top_cat = filtered_df.groupby("Category")["Amount"].sum().idxmax()
-st.write(f"👉 Top category: **{top_cat}**")
+top_category = filtered_df.groupby("Category")["Amount"].sum().idxmax()
+st.write(f"💡 You spend the most on: **{top_category}**")
 
-high_spend = filtered_df[filtered_df["Amount"] > 4000]
-st.write("⚠️ High Spending Transactions:")
-st.dataframe(high_spend.head())
+st.write(f"🔥 Highest single expense: ₹{int(max_val)}")
+st.write(f"📊 Average spending: ₹{avg:.2f}")
